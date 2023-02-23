@@ -23,23 +23,24 @@
 
 package ai.privado.languageEngine.java.passes.config
 
-import ai.privado.cache.RuleCache
-import ai.privado.model.RuleInfo
 import ai.privado.utility.Utilities
+import ai.privado.utility.Utilities.resolver
 import io.joern.x2cpg.SourceFiles
 import io.shiftleft.codepropertygraph.generated.{Cpg, EdgeTypes}
-import io.shiftleft.codepropertygraph.generated.nodes.{Literal, MethodParameterIn, NewFile, NewJavaProperty}
+import io.shiftleft.codepropertygraph.generated.nodes.{Literal, MethodParameterIn, NewFile, NewJavaProperty, TypeDecl}
 import io.shiftleft.passes.{ForkJoinParallelCpgPass, SimpleCpgPass}
 import org.slf4j.LoggerFactory
 import overflowdb.BatchedUpdate
 import overflowdb.traversal._
 
 import scala.jdk.CollectionConverters._
-import java.util.Properties
+import java.util.{InvalidPropertiesFormatException, Properties}
 import scala.util.{Failure, Success, Try}
 import io.shiftleft.semanticcpg.language._
 import io.circe.yaml.parser
 import com.github.wnameless.json.flattener.JsonFlattener
+
+import scala.xml._
 
 /** This pass creates a graph layer for Java `.properties` files.
   */
@@ -47,7 +48,9 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  override def generateParts(): Array[String] = propertiesFiles(projectRoot).toArray
+  var testCpg: Cpg = _
+  override def generateParts(): Array[String] =
+    propertiesFiles(projectRoot, Set(".properties", ".yml", ".yaml", ".xml")).toArray
 
   override def runOnPart(builder: DiffGraphBuilder, file: String): Unit = {
     val fileNode      = addFileNode(file, builder)
@@ -66,7 +69,7 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
         val propertyNodes = keyValuePairs.map(addPropertyNode(_, builder))
         propertyNodes.foreach(connectGetPropertyLiterals(_, builder))
         connectAnnotatedParameters(propertyNodes, builder)
-
+        connectBeanPropertiesToMembers(propertyNodes, builder)
         propertyNodes
       case Failure(exception) =>
         logger.warn(exception.getMessage)
@@ -87,6 +90,30 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
           builder.addEdge(param, propertyNode, EdgeTypes.ORIGINAL_PROPERTY)
         }
     }
+    val membersAndValues = annotatedMembers()
+    propertyNodes.foreach { propertyNode =>
+      membersAndValues
+        .filter { case (key, _) => propertyNode.name == key.code.slice(3, key.code.length - 2) }
+        .foreach { case (key, value) =>
+          println(s"Member edge str ${key.code.slice(3, key.code.length - 2)} <-> ${propertyNode.value}")
+          println(s"Member edge ${value.code} <-> ${propertyNode.value}")
+          builder.addEdge(propertyNode, value, EdgeTypes.IS_USED_AT)
+          builder.addEdge(value, propertyNode, EdgeTypes.ORIGINAL_PROPERTY)
+        }
+    }
+
+  }
+
+  private def connectBeanPropertiesToMembers(propertyNodes: List[NewJavaProperty], builder: DiffGraphBuilder): Unit = {
+    propertyNodes.foreach(propertyNode => {
+      val members = getMember(propertyNode.name)
+      val member  = if (members.nonEmpty) members.head else null
+      if (member != null) {
+        println(s"Edge establised: ${propertyNode.name} <-> ${member.typeDecl.fullName}.${member.name}")
+        builder.addEdge(propertyNode, member, EdgeTypes.IS_USED_AT);
+        builder.addEdge(member, propertyNode, EdgeTypes.ORIGINAL_PROPERTY);
+      }
+    })
   }
 
   /** List of all parameters annotated with Spring's `Value` annotation, along with the property name.
@@ -101,6 +128,17 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
       (x.start.parameter.head, value)
     }
     .l
+
+  /** List of all parameters annotated with Spring's `Value` annotation, along with the property name.
+    */
+  def annotatedMembers() = cpg.annotation
+    .code(".*@Value.*")
+    .where(_.member)
+    .map { x => (x.parameterAssign.head, x.member.head) }
+    .l
+
+  private def getMember(member: String) =
+    cpg.member.where(_.name(member)).toList
 
   /** In this method, we attempt to identify users of properties and connect them to property nodes.
     */
@@ -122,6 +160,8 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
   private def obtainKeyValuePairs(file: String): List[(String, String)] = {
     if (file.matches(""".*\.(?:yml|yaml)""")) {
       loadAndConvertYMLtoProperties(file)
+    } else if (file.endsWith(".xml")) {
+      loadAndConvertXMLtoProperties(file)
     } else {
       loadFromProperties(file)
     }
@@ -151,6 +191,81 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
     }
   }
 
+  // if beans file contain placeholders, search in .properties files across the project
+  private def resolvePlaceholderValuesXML(placeholder: String): String = {
+    val propertyFiles: List[String] = propertiesFiles(projectRoot, Set(".properties"))
+    propertyFiles.foreach(file => {
+      // Search across properties to find the required
+      loadFromProperties(file).foreach(propertyValue => {
+        val (name, value) = propertyValue;
+        if (name.equals(placeholder)) return value;
+      })
+    })
+    ""
+  }
+
+  // Used to extract (name, value) pairs from a bean config file
+  private def XMLParserBean(xmlPath: String): List[(String, String)] = {
+    try {
+      val xml = XML.loadFile(xmlPath)
+      val nameValuePairs = (xml \\ "bean").flatMap { bean =>
+        {
+          var result: (String, String) = ("", "")
+          val className: String        = bean \@ "class"
+          (bean \\ "property").map { prop =>
+            {
+              // Search for property tags inside a bean
+              val propValue = prop \@ "value"
+              if (propValue.startsWith("$") && propValue.endsWith("}")) {
+                val value = resolvePlaceholderValuesXML(
+                  propValue.substring(2, propValue.length - 1)
+                ) // Pass placeholder name without ${ and }
+                if (value.nonEmpty) {
+                  result = ((prop \@ "name"), value)
+                }
+              } else {
+                result = ((prop \@ "name"), propValue)
+              }
+
+            }
+
+            if (getMember((prop \@ "name")).exists(member => member.typeDecl.fullName.equals(className))) {
+              result // Only pass on those results whose classname is equal to the bean class name
+            } else {
+              ("", "")
+            }
+
+          }
+        }
+      }
+
+      return nameValuePairs.toList
+        .collect { case (name, value) => if (value.nonEmpty) (name, value) else ("", "") }
+        .filter { case (name, value) =>
+          name.nonEmpty && value.nonEmpty // Filter out name, value pairs which could not be resolved
+        }
+    } catch {
+      case e: Throwable => println(e)
+    }
+
+    List[("", "")]()
+
+  }
+
+  private def loadAndConvertXMLtoProperties(file: String): List[(String, String)] = {
+    val properties  = new Properties();
+    val inputStream = better.files.File(file).newInputStream
+    try {
+      properties.loadFromXML(inputStream)
+      properties.propertyNames.asScala.toList
+        .collect(p => (p.toString, properties.getProperty(p.toString)))
+    } catch {
+      case _: Throwable => {
+        XMLParserBean(file)
+      }
+    }
+  }
+
   private def propertiesToKeyValuePairs(properties: Properties): List[(String, String)] = {
     properties
       .propertyNames()
@@ -161,9 +276,10 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
       .toList
   }
 
-  private def propertiesFiles(projectRoot: String): List[String] = {
+  // Add extensions as a parameter to decouple it
+  private def propertiesFiles(projectRoot: String, extensions: Set[String]): List[String] = {
     SourceFiles
-      .determine(Set(projectRoot), Set(".properties", ".yml", ".yaml"))
+      .determine(Set(projectRoot), extensions)
       .filter(Utilities.isFileProcessable)
   }
 
@@ -179,6 +295,7 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
   ): NewJavaProperty = {
     val (key, value) = keyValuePair
     val propertyNode = NewJavaProperty().name(key).value(value)
+//    println(key, value)
     builder.addNode(propertyNode)
     propertyNode
   }
