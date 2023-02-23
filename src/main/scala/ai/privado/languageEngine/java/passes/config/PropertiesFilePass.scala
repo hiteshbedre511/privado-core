@@ -68,11 +68,11 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
       case Success(keyValuePairs) =>
         val propertyNodes = keyValuePairs.map(addPropertyNode(_, builder))
 
-        propertyNodes.foreach(propertyNode => {
-          connectGetPropertyLiterals(_, builder)
-          connectAnnotatedParameters(propertyNode, builder)
-          connectBeanPropertiesToMembers(propertyNode, builder)
-        })
+        // propertyNodes.foreach(propertyNode => {
+        //   connectGetPropertyLiterals(propertyNode, builder)
+        //   connectAnnotatedParameters(propertyNode, builder)
+        //   connectBeanPropertiesToMembers(propertyNode, builder)
+        // })
 
         propertyNodes
       case Failure(exception) =>
