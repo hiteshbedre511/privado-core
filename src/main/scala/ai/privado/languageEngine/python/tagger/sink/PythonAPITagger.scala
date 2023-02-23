@@ -89,7 +89,7 @@ class PythonAPITagger(cpg: Cpg) extends ForkJoinParallelCpgPass[RuleInfo](cpg) {
   }
 
   private def sinkTagger(
-    apiInternalSinkPattern: List[AstNode],
+    apiInternalSinkPattern: List[CfgNode],
     apis: List[CfgNode],
     builder: BatchedUpdate.DiffGraphBuilder,
     ruleInfo: RuleInfo

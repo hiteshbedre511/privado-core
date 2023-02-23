@@ -36,12 +36,12 @@ package object language {
 
   implicit class StepsForProperty(val trav: Traversal[JavaProperty]) extends AnyVal {
 
-    def usedAt: Traversal[AstNode] = trav.out(EdgeTypes.IS_USED_AT).cast[AstNode]
+    def usedAt: Traversal[CfgNode] = trav.out(EdgeTypes.IS_USED_AT).cast[CfgNode]
     def file: Traversal[File]      = trav.out(EdgeTypes.SOURCE_FILE).cast[File]
 
   }
 
-  implicit class NodeTravToProperty(val trav: Traversal[AstNode]) {
+  implicit class NodeTravToProperty(val trav: Traversal[CfgNode]) {
     def originalProperty: Traversal[JavaProperty] = trav.out(EdgeTypes.ORIGINAL_PROPERTY).cast[JavaProperty]
   }
 
