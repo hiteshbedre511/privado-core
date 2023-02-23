@@ -73,7 +73,7 @@ class PropertiesFilePass(cpg: Cpg, projectRoot: String) extends ForkJoinParallel
         //   connectAnnotatedParameters(propertyNode, builder)
         //   connectBeanPropertiesToMembers(propertyNode, builder)
         // })
-
+          println("====================================")
         propertyNodes
       case Failure(exception) =>
         logger.warn(exception.getMessage)
