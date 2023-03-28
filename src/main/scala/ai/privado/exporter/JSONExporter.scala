@@ -42,7 +42,6 @@ import ai.privado.model.exporter.DataFlowEncoderDecoder._
 import ai.privado.model.exporter.ViolationEncoderDecoder._
 import ai.privado.model.exporter.CollectionEncoderDecoder._
 import ai.privado.model.exporter.SinkEncoderDecoder._
-import ai.privado.utility.FutureUtil
 import better.files.File
 import privado_core.BuildInfo
 import io.circe.Json
