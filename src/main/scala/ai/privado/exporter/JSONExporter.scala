@@ -26,14 +26,23 @@ package ai.privado.exporter
 import ai.privado.cache.{AppCache, DataFlowCache, Environment, RuleCache, TaggerCache}
 import ai.privado.metric.MetricHandler
 import ai.privado.model.Constants.outputDirectoryName
-import ai.privado.model.exporter.DataFlowSubCategoryModel
+import ai.privado.model.exporter.{
+  CollectionModel,
+  DataFlowSourceIntermediateModel,
+  DataFlowSubCategoryModel,
+  SinkModel,
+  SinkProcessingModel,
+  SourceModel,
+  SourceProcessingModel,
+  ViolationModel
+}
 import ai.privado.model.{Constants, PolicyThreatType}
-import ai.privado.model.exporter.DataFlowSourceIntermediateModel
 import ai.privado.model.exporter.SourceEncoderDecoder._
 import ai.privado.model.exporter.DataFlowEncoderDecoder._
 import ai.privado.model.exporter.ViolationEncoderDecoder._
 import ai.privado.model.exporter.CollectionEncoderDecoder._
 import ai.privado.model.exporter.SinkEncoderDecoder._
+import ai.privado.utility.FutureUtil
 import better.files.File
 import privado_core.BuildInfo
 import io.circe.Json
@@ -51,7 +60,6 @@ import ExecutionContext.Implicits.global
 import duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
-import io.shiftleft.semanticcpg.language._
 
 object JSONExporter {
 
@@ -93,11 +101,20 @@ object JSONExporter {
       val collections     = Future(collectionExporter.getCollections)
       val violations      = Future(policyAndThreatExporter.getViolations(repoPath))
 
+      var sourceResult: Option[List[SourceModel]]                  = None
+      var processingResult: Option[List[SourceProcessingModel]]    = None
+      var sinksResult: Option[List[SinkModel]]                     = None
+      var processingSinksResult: Option[List[SinkProcessingModel]] = None
+      var probableSinksResult: Option[List[String]]                = None
+      var collectionsResult: Option[List[CollectionModel]]         = None
+      var violationsResult: Option[List[ViolationModel]]           = None
+
       // Called when the asynchronous call is completed
       sources.onComplete({
         case Success(value) => {
           output.addOne(Constants.sources -> value.asJson)
           logger.info("Completed sources export.")
+          sourceResult = Some(value)
         }
         case Failure(e) => {
           println(e)
@@ -108,6 +125,7 @@ object JSONExporter {
         case Success(value) => {
           output.addOne(Constants.sinks -> value.asJson)
           logger.info("Completed sinks export.")
+          sinksResult = Some(value)
         }
         case Failure(e) => {
           println(e)
@@ -118,7 +136,7 @@ object JSONExporter {
         case Success(value) => {
           output.addOne(Constants.processing -> value.asJson)
           logger.info("Completed processing export.")
-
+          processingResult = Some(value)
         }
         case Failure(e) => {
           println(e)
@@ -129,6 +147,7 @@ object JSONExporter {
         case Success(value) => {
           output.addOne(Constants.collections -> value.asJson)
           logger.info("Completed collections export.")
+          collectionsResult = Some(value)
         }
         case Failure(e) => {
           println(e)
@@ -139,6 +158,7 @@ object JSONExporter {
         case Success(value) => {
           output.addOne(Constants.probableSinks -> value.asJson)
           logger.info("Completed probable sinks export.")
+          probableSinksResult = Some(value)
         }
         case Failure(e) => {
           println(e)
@@ -149,6 +169,7 @@ object JSONExporter {
         case Success(value) => {
           output.addOne(Constants.sinkProcessing -> value.asJson)
           logger.info("Completed sinks export.")
+          processingSinksResult = Some(value)
         }
         case Failure(e) => {
           println(e)
@@ -159,6 +180,7 @@ object JSONExporter {
         case Success(value) => {
           output.addOne("violations" -> value.asJson)
           logger.info("Completed violation export.")
+          violationsResult = Some(value)
         }
         case Failure(e) => {
           println(e)
@@ -184,20 +206,22 @@ object JSONExporter {
 
       logger.info("Completed Collections Exporting")
 
-      val violationResult = Await.result(violations, 10 seconds);
-
-      MetricHandler.metricsData("policyViolations") = violationResult.size.asJson
-      violationResult.foreach(violation => {
-        MetricHandler.internalPoliciesOrThreatsMatched.addOne(violation.policyId)
-      })
+      MetricHandler.metricsData("policyViolations") = violationsResult.getOrElse(List()).size.asJson
+      violationsResult
+        .getOrElse(List())
+        .foreach(violation => {
+          MetricHandler.internalPoliciesOrThreatsMatched.addOne(violation.policyId)
+        })
 
       //  Compliance Violations
-      val complianceViolations = violationResult.filter(violation =>
-        violation.policyDetails match {
-          case Some(policyDetail) => policyDetail.policyType.equals(PolicyThreatType.COMPLIANCE.toString)
-          case None               => false
-        }
-      )
+      val complianceViolations = violationsResult
+        .getOrElse(List())
+        .filter(violation =>
+          violation.policyDetails match {
+            case Some(policyDetail) => policyDetail.policyType.equals(PolicyThreatType.COMPLIANCE.toString)
+            case None               => false
+          }
+        )
       logger.debug("------------ Sink Skip List ---------------")
       val skipRules = RuleCache.getRule.sinkSkipList.map(sinkSkipRule => sinkSkipRule.combinedRulePattern)
       logger.debug(s"$skipRules")
@@ -206,10 +230,10 @@ object JSONExporter {
 
       ConsoleExporter.exportConsoleSummary(
         dataflowsOutput,
-        Await.result(sources, 10 seconds),
-        Await.result(sinks, 10 seconds),
-        Await.result(processing, 10 seconds),
-        Await.result(collections, 10 seconds),
+        sourceResult.getOrElse(List()),
+        sinksResult.getOrElse(List()),
+        processingResult.getOrElse(List()),
+        collectionsResult.getOrElse(List()),
         complianceViolations.size
       )
 
@@ -244,6 +268,7 @@ object JSONExporter {
 
     } catch {
       case ex: Exception =>
+        println(ex)
         println("Failed to export output")
         logger.debug("Failed to export output", ex)
         Left(ex.toString)
