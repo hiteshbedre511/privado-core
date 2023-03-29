@@ -35,7 +35,8 @@ class IdentifierTagger(cpg: Cpg) extends ForkJoinParallelCpgPass[RuleInfo](cpg) 
   override def generateParts(): Array[RuleInfo] = RuleCache.getRule.sources.toArray
 
   override def runOnPart(builder: DiffGraphBuilder, ruleInfo: RuleInfo): Unit = {
-    val rulePattern              = ruleInfo.combinedRulePattern
+    val rulePattern = ruleInfo.combinedRulePattern
+
     val regexMatchingIdentifiers = cpg.identifier(rulePattern).l
     regexMatchingIdentifiers.foreach(identifier => {
       storeForTag(builder, identifier)(InternalTag.VARIABLE_REGEX_IDENTIFIER.toString)
@@ -48,5 +49,30 @@ class IdentifierTagger(cpg: Cpg) extends ForkJoinParallelCpgPass[RuleInfo](cpg) 
       storeForTag(builder, identifier)(InternalTag.VARIABLE_REGEX_IDENTIFIER.toString)
       addRuleTags(builder, identifier, ruleInfo)
     })
+
+    val regexMatchingMembers = cpg.member.name(rulePattern).l
+    regexMatchingMembers.foreach(member => {
+      storeForTag(builder, member)(InternalTag.VARIABLE_REGEX_MEMBER.toString)
+      addRuleTags(builder, member, ruleInfo)
+    })
+
+    //    Example: row_vehicle['VEHICLE_REGISTRATION_NUMBER']
+    //    Call("<operator>.indexAccess") // Tagging
+    //      [Arguments]
+    //      -Literal 'VEHICLE_REGISTRATION_NUMBER'
+    //      -Identifier row_vehicle
+    val indexAccessLiterals = cpg
+      .call("<operator>.indexAccess")
+      .argument
+      .isLiteral
+      .code("(?:\"|'|`)(" + rulePattern + ")(?:\"|'|`)")
+      .whereNot(_.code(".*\\s.*"))
+      .l
+    val indexAccessCalls = indexAccessLiterals.astParent.isCall.l
+    indexAccessCalls.foreach(iaCall => {
+      storeForTag(builder, iaCall)(InternalTag.INDEX_ACCESS_CALL.toString)
+      addRuleTags(builder, iaCall, ruleInfo)
+    })
+
   }
 }
