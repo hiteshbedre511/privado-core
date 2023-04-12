@@ -55,6 +55,8 @@ class DBConfigTagger(cpg: Cpg) extends ForkJoinParallelCpgPass[JavaProperty](cpg
         parsePropForSpringJDBCAndJPA(dbUrl)
       } else if (dbUrl.value.contains("mongodb")) {
         parsePropForSpringDataMongo(dbUrl)
+      } else if (dbUrl.value.contains("bootstrap")) {
+        parsePropForKafka(dbUrl)
       } else if (
         dbUrl.name.contains("neo4j.host")
         && dbUrl.value.matches("(localhost|[^{]*\\..*\\.[^}]*)")
@@ -237,6 +239,23 @@ class DBConfigTagger(cpg: Cpg) extends ForkJoinParallelCpgPass[JavaProperty](cpg
     DatabaseDetailsCache.addDatabaseDetails(
       DatabaseDetails(dbName, dbVendor, dbLocation, "Write"),
       "Storages.Neo4jGraphDatabase.Write"
+    )
+  }
+
+  private def parsePropForKafka(dbUrl: JavaProperty): Unit = {
+
+    val dbVendor = "kafka"
+    val dbLocation = dbUrl.value.split("=")(1)
+    val producerDBName = "Apache Kafka (Producer)"
+    val consumerDBName = "Apache Kafka (Consumer)"
+
+    DatabaseDetailsCache.addDatabaseDetails(
+      DatabaseDetails(producerDBName, dbVendor, dbLocation, "Producer"),
+      "Messaging.Queue.Kafka.Producer"
+    )
+    DatabaseDetailsCache.addDatabaseDetails(
+      DatabaseDetails(consumerDBName, dbVendor, dbLocation, "Consumer"),
+      "Messaging.Queue.Kafka.Consumer"
     )
   }
 
