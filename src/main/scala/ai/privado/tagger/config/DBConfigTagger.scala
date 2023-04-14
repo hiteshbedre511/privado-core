@@ -55,7 +55,8 @@ class DBConfigTagger(cpg: Cpg) extends ForkJoinParallelCpgPass[JavaProperty](cpg
         parsePropForSpringJDBCAndJPA(dbUrl)
       } else if (dbUrl.value.contains("mongodb")) {
         parsePropForSpringDataMongo(dbUrl)
-      } else if (dbUrl.value.contains("bootstrap")) {
+      } else if (dbUrl.name.contains("bootstrap.servers")
+        && dbUrl.value.matches("localhost")) {
         parsePropForKafka(dbUrl)
       } else if (
         dbUrl.name.contains("neo4j.host")
