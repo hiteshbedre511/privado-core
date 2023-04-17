@@ -275,7 +275,6 @@ object ScanProcessor extends CommandProcessor {
     mergedRules
   }
   override def process(): Either[String, Unit] = {
-    println("Hi users! Testing......Testing......Testing........")
     println(s"Privado CLI Version: ${Environment.privadoVersionCli.getOrElse(Constants.notDetected)}")
     println(s"Privado Core Version: ${Environment.privadoVersionCore}")
     println(s"Privado Language Engine Version: ${BuildInfo.joernVersion}")
