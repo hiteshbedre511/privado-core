@@ -23,7 +23,7 @@
 
 package ai.privado.dataflow
 
-import ai.privado.cache.{AppCache, DataFlowCache}
+import ai.privado.cache.{AppCache, DataFlowCache, RuleCache}
 import ai.privado.entrypoint.{PrivadoInput, ScanProcessor, TimeMetric}
 import ai.privado.exporter.ExporterUtility
 import ai.privado.languageEngine.java.semantic.SemanticGenerator
@@ -44,18 +44,21 @@ import scala.util.{Failure, Success}
 class Dataflow(cpg: Cpg) {
 
   private val logger = LoggerFactory.getLogger(getClass)
-  implicit val engineContext: EngineContext =
-    EngineContext(semantics = SemanticGenerator.getSemantics(cpg, ScanProcessor.config), config = EngineConfig(4))
 
   /** Compute the flow of data from tagged Sources to Sinks
     * @return
     *   \- Map of PathId -> Path corresponding to source to sink path
     */
-  def dataflow(privadoScanConfig: PrivadoInput): Map[String, Path] = {
+  def dataflow(privadoScanConfig: PrivadoInput, ruleCache: RuleCache): Map[String, Path] = {
 
     logger.info("Generating dataflow")
-    val sources = getSources
-    val sinks   = getSinks
+    implicit val engineContext: EngineContext =
+      EngineContext(
+        semantics = SemanticGenerator.getSemantics(cpg, ScanProcessor.config, ruleCache),
+        config = EngineConfig(4)
+      )
+    val sources = Dataflow.getSources(cpg)
+    val sinks   = Dataflow.getSinks(cpg)
 
     println(s"${TimeMetric.getNewTimeAndSetItToStageLast()} - --no of source nodes - ${sources.size}")
     println(s"${TimeMetric.getNewTimeAndSetItToStageLast()} - --no of sinks nodes - ${sinks.size}")
@@ -150,10 +153,10 @@ class Dataflow(cpg: Cpg) {
         .toMap
 
       // Setting cache
-      DataFlowCache.dataflowsMapByType = dataflowMapByPathId
+      DataFlowCache.dataflowsMapByType ++= dataflowMapByPathId
 
       println(s"${Calendar.getInstance().getTime} - --Filtering flows 2 is invoked...")
-      DuplicateFlowProcessor.filterIrrelevantFlowsAndStoreInCache(dataflowMapByPathId, privadoScanConfig)
+      DuplicateFlowProcessor.filterIrrelevantFlowsAndStoreInCache(dataflowMapByPathId, privadoScanConfig, ruleCache)
       println(
         s"${TimeMetric.getNewTime()} - --Filtering flows 2 is done in \t\t\t- ${TimeMetric
             .setNewTimeToStageLastAndGetTimeDiff()} - Final flows - ${DataFlowCache.dataflow.values.flatMap(_.values).flatten.size}"
@@ -163,16 +166,25 @@ class Dataflow(cpg: Cpg) {
       val dataflowFromCache = DataFlowCache.getDataflow
       println(s"${TimeMetric.getNewTime()} - --Deduplicating flows is done in \t\t- ${TimeMetric
           .setNewTimeToStageLastAndGetTimeDiff()} - Unique flows - ${dataflowFromCache.size}")
-      dataflowFromCache.map(_.pathId).toSet.map((pathId: String) => (pathId, dataflowMapByPathId(pathId))).toMap
+
+      dataflowFromCache
+        .map(_.pathId)
+        .toSet
+        .map((pathId: String) => (pathId, DataFlowCache.dataflowsMapByType(pathId)))
+        .toMap
     }
   }
 
-  private def getSources: List[AstNode] = {
+}
+
+object Dataflow {
+  def getSources(cpg: Cpg): List[AstNode] = {
     def filterSources(traversal: Traversal[AstNode]) = {
       traversal.tag
         .nameExact(Constants.catLevelOne)
         .or(_.valueExact(CatLevelOne.SOURCES.name), _.valueExact(CatLevelOne.DERIVED_SOURCES.name))
     }
+
     cpg.literal
       .where(filterSources)
       .l ++ cpg.identifier
@@ -182,8 +194,7 @@ class Dataflow(cpg: Cpg) {
       .l ++ cpg.argument.isFieldIdentifier.where(filterSources).l ++ cpg.member.where(filterSources).l
   }
 
-  private def getSinks: List[CfgNode] = {
+  private def getSinks(cpg: Cpg): List[CfgNode] = {
     cpg.call.where(_.tag.nameExact(Constants.catLevelOne).valueExact(CatLevelOne.SINKS.name)).l
   }
-
 }

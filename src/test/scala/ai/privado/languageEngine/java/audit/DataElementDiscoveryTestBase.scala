@@ -14,16 +14,17 @@ abstract class DataElementDiscoveryTestBase extends AnyWordSpec with Matchers wi
 
   var cpg: Cpg = _
   val javaFileContentMap: Map[String, String]
-  var inputDir: File   = _
-  var outputFile: File = _
+  var inputDir: File  = _
+  var outputDir: File = _
+  val ruleCache       = new RuleCache()
   override def beforeAll(): Unit = {
     inputDir = File.newTemporaryDirectory()
     for ((key, content) <- javaFileContentMap) {
       (inputDir / s"$key.java").write(content)
     }
-    outputFile = File.newTemporaryDirectory()
+    outputDir = File.newTemporaryDirectory()
 
-    val config  = Config(inputPath = inputDir.toString(), outputPath = outputFile.toString(), fetchDependencies = true)
+    val config  = Config(inputPath = inputDir.toString(), outputPath = outputDir.toString(), fetchDependencies = true)
     val javaSrc = new JavaSrc2Cpg()
     val xtocpg = javaSrc.createCpg(config).map { cpg =>
       applyDefaultOverlays(cpg)
@@ -32,14 +33,14 @@ abstract class DataElementDiscoveryTestBase extends AnyWordSpec with Matchers wi
 
     cpg = xtocpg.get
 
-    RuleCache.setRule(rule)
+    ruleCache.setRule(rule)
     super.beforeAll()
   }
 
   override def afterAll(): Unit = {
     inputDir.delete()
     cpg.close()
-    outputFile.delete()
+    outputDir.delete()
     super.afterAll()
   }
 
@@ -75,7 +76,7 @@ abstract class DataElementDiscoveryTestBase extends AnyWordSpec with Matchers wi
       NodeType.REGULAR,
       "",
       CatLevelOne.COLLECTIONS,
-      "",
+      catLevelTwo = "annotations",
       Language.JAVA,
       Array()
     )

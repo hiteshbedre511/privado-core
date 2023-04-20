@@ -37,7 +37,7 @@ import io.shiftleft.semanticcpg.language._
 
 import scala.collection.mutable.HashMap
 
-class APITagger(cpg: Cpg) extends ForkJoinParallelCpgPass[RuleInfo](cpg) {
+class APITagger(cpg: Cpg, ruleCache: RuleCache) extends ForkJoinParallelCpgPass[RuleInfo](cpg) {
 
   val cacheCall                  = cpg.call.where(_.nameNot("(<operator|<init).*")).l
   val internalMethodCall         = cpg.method.dedup.isExternal(false).fullName.take(30).l
@@ -72,34 +72,14 @@ class APITagger(cpg: Cpg) extends ForkJoinParallelCpgPass[RuleInfo](cpg) {
   lazy val APISINKSIGNORE_REGEX = "(?i)(json|map).*(put:|get:)"
 
   override def generateParts(): Array[_ <: AnyRef] = {
-    RuleCache.getRule.sinks
+    ruleCache.getRule.sinks
       .filter(rule => rule.nodeType.equals(NodeType.API))
       .toArray
   }
   override def runOnPart(builder: DiffGraphBuilder, ruleInfo: RuleInfo): Unit = {
-    val apiInternalSources = cpg.literal
-      .code("(?:\"|')(" + ruleInfo.combinedRulePattern + ")(?:\"|')")
-      .map(literalNode => {
-        // Runtime string parent is used to consider string which are generated at runtime
-        // Ex - In javascript `/user/${userId}/paymentDetails`
-        val runtimeStringParent = Traversal(literalNode).astParent.isCall.name(Constants.runtimeString).l
-        if (runtimeStringParent.nonEmpty) {
-          runtimeStringParent.head
-        } else
-          literalNode
-      })
-      .l
-    val propertySources = cpg.property.filter(p => p.value matches (ruleInfo.combinedRulePattern)).usedAt.l
-    // Support to use `identifier` in API's
-    val identifierRegex = RuleCache.getSystemConfigByKey(Constants.apiIdentifier)
-    val identifierSource = {
-      if (!ruleInfo.id.equals(Constants.internalAPIRuleId))
-        cpg.identifier(identifierRegex).l ++ cpg.member
-          .name(identifierRegex)
-          .l ++ cpg.property.filter(p => p.name matches (identifierRegex)).usedAt.l
-      else
-        List()
-    }
-    sinkTagger(apiInternalSources ++ propertySources ++ identifierSource, apis, builder, ruleInfo)
+
+    val apiInternalSources = cpg.literal.code("(?:\"|')(" + ruleInfo.combinedRulePattern + ")(?:\"|')").l
+    val propertySources    = cpg.property.filter(p => p.value matches (ruleInfo.combinedRulePattern)).usedAt.l
+    sinkTagger(apiInternalSources ++ propertySources, apis, builder, ruleInfo, ruleCache)
   }
 }
