@@ -35,7 +35,7 @@ import overflowdb.BatchedUpdate
 class DatabaseRepositoryReadPass(cpg: Cpg, taggerCache: TaggerCache) extends PrivadoSimpleCpgPass(cpg) {
 
   val sensitiveClassesWithMatchedRules = taggerCache.typeDeclMemberCache
-  val sensitiveClasses                 = taggerCache.typeDeclMemberCache.keys.l
+  val sensitiveClasses                 = taggerCache.typeDeclMemberCache.keys
   implicit val resolver: ICallResolver = NoResolve
 
   val logger = LoggerFactory.getLogger(getClass)

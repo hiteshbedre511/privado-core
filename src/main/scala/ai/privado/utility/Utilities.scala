@@ -298,7 +298,7 @@ object Utilities {
     * @return
     */
   def getFileNameForNode(node: AstNode): String = {
-    Traversal(node).file.name.headOption.getOrElse(Constants.EMPTY)
+    node.iterator.file.name.headOption.getOrElse(Constants.EMPTY)
   }
 
   /** Returns a domain for a given url string

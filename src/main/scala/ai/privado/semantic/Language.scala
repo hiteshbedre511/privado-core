@@ -25,8 +25,8 @@ package ai.privado.semantic
 import ai.privado.dataflow.Dataflow
 import io.shiftleft.codepropertygraph.generated.{Cpg, EdgeTypes, NodeTypes}
 import io.shiftleft.codepropertygraph.generated.nodes.{File, SqlColumnNode, SqlQueryNode, SqlTableNode}
-import io.shiftleft.semanticcpg.language.{DefaultNodeExtensionFinder, NodeExtensionFinder}
-import overflowdb.traversal.{Traversal, jIteratortoTraversal}
+import io.shiftleft.semanticcpg.language._
+import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 object Language {
 
@@ -34,28 +34,28 @@ object Language {
   implicit def privadoDataflow(cpg: Cpg): Dataflow = new Dataflow(cpg)
 
   implicit class NodeStarterForSqlQueryNode(cpg: Cpg) {
-    def sqlQuery: Traversal[SqlQueryNode] =
-      cpg.graph.nodes(NodeTypes.SQL_QUERY_NODE).cast[SqlQueryNode]
+    def sqlQuery: Iterator[SqlQueryNode] =
+      cpg.graph.nodes(NodeTypes.SQL_QUERY_NODE).asScala.cast[SqlQueryNode]
 
-    def sqlTable: Traversal[SqlTableNode] =
-      cpg.graph.nodes(NodeTypes.SQL_TABLE_NODE).cast[SqlTableNode]
+    def sqlTable: Iterator[SqlTableNode] =
+      cpg.graph.nodes(NodeTypes.SQL_TABLE_NODE).asScala.cast[SqlTableNode]
 
-    def sqlColumn: Traversal[SqlColumnNode] =
-      cpg.graph.nodes(NodeTypes.SQL_COLUMN_NODE).cast[SqlColumnNode]
+    def sqlColumn: Iterator[SqlColumnNode] =
+      cpg.graph.nodes(NodeTypes.SQL_COLUMN_NODE).asScala.cast[SqlColumnNode]
   }
 
-  implicit class StepsForPropertyForSqlQueryNode(val trav: Traversal[SqlQueryNode]) extends AnyVal {
-    def file: Traversal[File] = trav.out(EdgeTypes.SOURCE_FILE).cast[File]
-
-  }
-
-  implicit class StepsForPropertyForSqlTableNode(val trav: Traversal[SqlTableNode]) extends AnyVal {
-    def file: Traversal[File] = trav.out(EdgeTypes.SOURCE_FILE).cast[File]
+  implicit class StepsForPropertyForSqlQueryNode(val trav: Iterator[SqlQueryNode]) extends AnyVal {
+    def file: Iterator[File] = trav.out(EdgeTypes.SOURCE_FILE).asScala.cast[File]
 
   }
 
-  implicit class StepsForPropertyForSqlColumnNode(val trav: Traversal[SqlColumnNode]) extends AnyVal {
-    def file: Traversal[File] = trav.out(EdgeTypes.SOURCE_FILE).cast[File]
+  implicit class StepsForPropertyForSqlTableNode(val trav: Iterator[SqlTableNode]) extends AnyVal {
+    def file: Iterator[File] = trav.out(EdgeTypes.SOURCE_FILE).asScala.cast[File]
+
+  }
+
+  implicit class StepsForPropertyForSqlColumnNode(val trav: Iterator[SqlColumnNode]) extends AnyVal {
+    def file: Iterator[File] = trav.out(EdgeTypes.SOURCE_FILE).asScala.cast[File]
 
   }
 }

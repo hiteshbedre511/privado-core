@@ -120,7 +120,7 @@ class MessagingConsumerReadPass(cpg: Cpg, taggerCache: TaggerCache) extends Priv
       .getSources(cpg)
       .filter(_.isInstanceOf[CfgNode])
       .map(_.asInstanceOf[CfgNode])
-      .l
+      .toList
 
     val dataflowReadFlows   = Dataflow.dataflowForSourceSinkPair(dataflowReadSource, dataflowReadSink)
     val dataflowUniqueFlows = DuplicateFlowProcessor.getUniquePathsAfterDedup(dataflowReadFlows)

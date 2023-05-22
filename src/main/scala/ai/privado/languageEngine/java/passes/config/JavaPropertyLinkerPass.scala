@@ -42,7 +42,7 @@ import io.shiftleft.passes.ForkJoinParallelCpgPass
   */
 class JavaPropertyLinkerPass(cpg: Cpg) extends PrivadoParallelCpgPass[JavaProperty](cpg) {
   override def generateParts(): Array[_ <: AnyRef] =
-    cpg.property.l.filter(pair => pair.name.nonEmpty && pair.value.nonEmpty).toArray
+    cpg.property.iterator.filter(pair => pair.name.nonEmpty && pair.value.nonEmpty).toArray
 
   override def runOnPart(builder: DiffGraphBuilder, property: JavaProperty): Unit = {
     connectProperties(property, builder)
@@ -91,7 +91,7 @@ class JavaPropertyLinkerPass(cpg: Cpg) extends PrivadoParallelCpgPass[JavaProper
   private def annotatedMembers(): List[(AnnotationParameterAssign, Member)] = cpg.annotation
     .fullName(".*Value.*")
     .where(_.member)
-    .filter(_.parameterAssign.l.length > 0)
+    .filter(_.parameterAssign.l.nonEmpty)
     .map { x => (x.parameterAssign.head, x.member.head) }
     .l
 

@@ -140,7 +140,7 @@ object JavaSemanticGenerator extends SemanticGenerator {
         .call
         .whereNot(_.tag.nameExact(InternalTag.SENSITIVE_METHOD_RETURN.toString))
         .map(generateSemanticForTaint(_))
-    ).l
+    )
 
     val nonPersonalSetterMethodFullNames = getMaximumFlowSemantic(
       cpg.tag
@@ -148,7 +148,7 @@ object JavaSemanticGenerator extends SemanticGenerator {
         .call
         .whereNot(_.nameExact(InternalTag.SENSITIVE_SETTER.toString))
         .map(generateSemanticForTaint(_))
-    ).l
+    )
 
     val personalSetterMethodFullNames =
       getMaximumFlowSemantic(
@@ -156,7 +156,7 @@ object JavaSemanticGenerator extends SemanticGenerator {
           .where(_.nameExact(InternalTag.SENSITIVE_SETTER.toString))
           .call
           .map(methodName => generateSemanticForTaint(methodName, 0))
-      ).l
+      )
     (nonPersonalGetterSemantics ::: nonPersonalSetterMethodFullNames ::: personalSetterMethodFullNames).sorted
   }
 }

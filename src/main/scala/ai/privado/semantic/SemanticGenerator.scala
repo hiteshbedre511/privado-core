@@ -96,11 +96,12 @@ trait SemanticGenerator {
     * @param semantics
     * @return
     */
-  def getMaximumFlowSemantic(semantics: Traversal[Semantic]): Seq[String] = {
+  def getMaximumFlowSemantic(semantics: Iterator[Semantic]): List[String] = {
     semantics.l.par
       .groupBy(_.signature)
-      .map(_._2.sortBy(_.flow).last)
+      .map(_._2.iterator.sortBy(_.flow).last)
       .flatMap(generateSemantic)
+      .toList
       .sorted
   }
 }

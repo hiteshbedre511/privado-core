@@ -116,7 +116,7 @@ class FeignAPI(cpg: Cpg, ruleCache: RuleCache) {
         else
           typeDeclWithUrl.addOne(typeDecl.fullName, apiLiteral)
       })
-    (typeDeclWithoutUrl.l, typeDeclWithUrl)
+    (typeDeclWithoutUrl, typeDeclWithUrl)
   }
 
   /** Returns Type decl node which holds probable API sinks which uses RequestLine annotation
@@ -152,7 +152,7 @@ class FeignAPI(cpg: Cpg, ruleCache: RuleCache) {
           DuplicateFlowProcessor.getUniquePathsAfterDedup(flows)
       }
       val firstArgument =
-        targetArguments.where(_.argumentIndex(1)).code.headOption.getOrElse("").split(".class").headOption.getOrElse("")
+        targetArguments.iterator.where(_.argumentIndex(1)).code.headOption.getOrElse("").split(".class").headOption.getOrElse("")
       val apiLiteral = {
         if (feignFlows.isEmpty)
           ""

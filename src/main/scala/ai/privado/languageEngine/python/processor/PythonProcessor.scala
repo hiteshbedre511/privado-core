@@ -1,66 +1,43 @@
 package ai.privado.languageEngine.python.processor
 
 import ai.privado.audit.AuditReportEntryPoint
-import ai.privado.cache.{AppCache, AuditCache, DataFlowCache, RuleCache, TaggerCache}
+import ai.privado.cache._
+import ai.privado.entrypoint.ScanProcessor.config
 import ai.privado.entrypoint.{ScanProcessor, TimeMetric}
+import ai.privado.exporter.{ExcelExporter, JSONExporter}
 import ai.privado.languageEngine.python.passes.PrivadoPythonTypeHintCallLinker
 import ai.privado.languageEngine.python.passes.config.PythonPropertyLinkerPass
-import ai.privado.exporter.{ExcelExporter, JSONExporter}
 import ai.privado.languageEngine.python.semantic.Language._
 import ai.privado.metric.MetricHandler
-import ai.privado.model.{CatLevelOne, ConfigAndRules, Constants}
-import ai.privado.model.Constants.{
-  cpgOutputFileName,
-  outputAuditFileName,
-  outputDirectoryName,
-  outputFileName,
-  outputIntermediateFileName,
-  outputUnresolvedFilename
-}
+import ai.privado.model.Constants._
+import ai.privado.model.{CatLevelOne, Constants, Language}
+import ai.privado.passes.{HTMLParserPass, SQLParser}
 import ai.privado.semantic.Language._
+import ai.privado.utility.Utilities.createCpgFolder
 import ai.privado.utility.{PropertyParserPass, UnresolvedReportUtility}
-import ai.privado.entrypoint.ScanProcessor.config
-import ai.privado.languageEngine.java.cache.ModuleCache
-import ai.privado.languageEngine.java.passes.config.ModuleFilePass
-import ai.privado.languageEngine.java.passes.module.DependenciesNodePass
-import io.joern.pysrc2cpg.{
-  ImportsPass,
-  InheritanceFullNamePass,
-  Py2CpgOnFileSystem,
-  Py2CpgOnFileSystemConfig,
-  PythonNaiveCallLinker,
-  PythonTypeHintCallLinker,
-  PythonTypeRecoveryPass
-}
-import io.shiftleft.codepropertygraph
-import org.slf4j.LoggerFactory
-import io.shiftleft.semanticcpg.language._
 import better.files.File
 import io.joern.dataflowengineoss.layers.dataflows.{OssDataFlow, OssDataFlowOptions}
+import io.joern.pysrc2cpg._
 import io.joern.x2cpg.X2Cpg
-import io.shiftleft.codepropertygraph.generated.Operators
-import io.shiftleft.semanticcpg.layers.LayerCreatorContext
-import ai.privado.model.Language
-import ai.privado.utility.Utilities.createCpgFolder
-import io.joern.javasrc2cpg.Config
-
-import java.util.Calendar
-import scala.jdk.CollectionConverters.CollectionHasAsScala
-import scala.util.{Failure, Success, Try}
-import ai.privado.passes.{HTMLParserPass, SQLParser}
 import io.joern.x2cpg.passes.base.AstLinkerPass
+import io.shiftleft.codepropertygraph
+import io.shiftleft.semanticcpg.language._
+import io.shiftleft.semanticcpg.layers.LayerCreatorContext
+import org.slf4j.LoggerFactory
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.Paths
+import java.util.Calendar
 import scala.collection.mutable.ListBuffer
+import scala.util.{Failure, Success, Try}
 
 object PythonProcessor {
   private val logger = LoggerFactory.getLogger(getClass)
 
   private def processCPG(
-    xtocpg: Try[codepropertygraph.Cpg],
-    ruleCache: RuleCache,
-    sourceRepoLocation: String
-  ): Either[String, Unit] = {
+                          xtocpg: Try[codepropertygraph.Cpg],
+                          ruleCache: RuleCache,
+                          sourceRepoLocation: String
+                        ): Either[String, Unit] = {
     xtocpg match {
       case Success(cpg) => {
         try {
@@ -73,7 +50,7 @@ object PythonProcessor {
           // Apply default overlays
           X2Cpg.applyDefaultOverlays(cpg)
           new ImportsPass(cpg).createAndApply()
-          new InheritanceFullNamePass(cpg).createAndApply()
+          new PythonInheritanceNamePass(cpg).createAndApply()
           println(
             s"${TimeMetric.getNewTime()} - Run InheritanceFullNamePass done in \t\t\t- ${TimeMetric.setNewTimeToLastAndGetTimeDiff()}"
           )
@@ -115,8 +92,10 @@ object PythonProcessor {
 
           println(s"${Calendar.getInstance().getTime} - Finding source to sink flow of data...")
           val dataflowMap = cpg.dataflow(ScanProcessor.config, ruleCache)
-          println(s"\n${TimeMetric.getNewTime()} - Finding source to sink flow is done in \t\t- ${TimeMetric
-              .setNewTimeToLastAndGetTimeDiff()} - Processed final flows - ${DataFlowCache.finalDataflow.size}")
+          println(s"\n${TimeMetric.getNewTime()} - Finding source to sink flow is done in \t\t- ${
+            TimeMetric
+              .setNewTimeToLastAndGetTimeDiff()
+          } - Processed final flows - ${DataFlowCache.finalDataflow.size}")
           println(s"\n${TimeMetric.getNewTime()} - Code scanning is done in \t\t\t- ${TimeMetric.getTheTotalTime()}\n")
           println(s"${Calendar.getInstance().getTime} - Brewing result...")
           MetricHandler.setScanStatus(true)
@@ -192,7 +171,7 @@ object PythonProcessor {
           cpg.close()
           import java.io.File
           val cpgconfig =
-            Config(outputPath = s"$sourceRepoLocation/$outputDirectoryName/$cpgOutputFileName")
+            io.joern.pysrc2cpg.Py2CpgOnFileSystemConfig().withOutputPath(s"$sourceRepoLocation/$outputDirectoryName/$cpgOutputFileName")
           val cpgFile = new File(cpgconfig.outputPath)
           println(s"\n\nBinary file size -- ${cpgFile.length()} in Bytes - ${cpgFile.length() * 0.000001} MB\n")
         }
@@ -207,11 +186,11 @@ object PythonProcessor {
   }
 
   /** Create cpg using Python Language
-    *
-    * @param sourceRepoLocation
-    * @param lang
-    * @return
-    */
+   *
+   * @param sourceRepoLocation
+   * @param lang
+   * @return
+   */
   def createPythonCpg(ruleCache: RuleCache, sourceRepoLocation: String, lang: String): Either[String, Unit] = {
 
     println(s"${Calendar.getInstance().getTime} - Processing source code using $lang engine")
@@ -219,13 +198,15 @@ object PythonProcessor {
 
     // Converting path to absolute path, we may need that same as JS
     val absoluteSourceLocation = File(sourceRepoLocation).path.toAbsolutePath
-    val cpgOutputPath          = s"$sourceRepoLocation/$outputDirectoryName/$cpgOutputFileName"
+    val cpgOutputPath = s"$sourceRepoLocation/$outputDirectoryName/$cpgOutputFileName"
 
     // Create the .privado folder if not present
     createCpgFolder(sourceRepoLocation);
 
     // TODO Discover ignoreVenvDir and set ignore true or flase based on user input
-    val cpgconfig = Py2CpgOnFileSystemConfig(Paths.get(cpgOutputPath), absoluteSourceLocation, File(".venv").path, true)
+    val cpgconfig = Py2CpgOnFileSystemConfig(File(".venv").path, true)
+      .withOutputPath(Paths.get(cpgOutputPath).toString)
+      .withInputPath(absoluteSourceLocation.toString)
     val xtocpg = new Py2CpgOnFileSystem().createCpg(cpgconfig).map { cpg =>
       println(
         s"${TimeMetric.getNewTime()} - Base processing done in \t\t\t\t- ${TimeMetric.setNewTimeToLastAndGetTimeDiff()}"

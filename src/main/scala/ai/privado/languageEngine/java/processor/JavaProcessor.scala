@@ -24,57 +24,47 @@
 package ai.privado.languageEngine.java.processor
 
 import ai.privado.audit.{AuditReportEntryPoint, DependencyReport}
-import ai.privado.cache.{AppCache, AuditCache, DataFlowCache, RuleCache, TaggerCache}
+import ai.privado.cache._
 import ai.privado.entrypoint.ScanProcessor.config
 import ai.privado.entrypoint.{ScanProcessor, TimeMetric}
-import ai.privado.exporter.JSONExporter
-import ai.privado.exporter.ExcelExporter
+import ai.privado.exporter.{ExcelExporter, JSONExporter}
 import ai.privado.languageEngine.java.cache.ModuleCache
 import ai.privado.languageEngine.java.passes.config.{JavaPropertyLinkerPass, ModuleFilePass}
 import ai.privado.languageEngine.java.passes.methodFullName.LoggerLombokPass
+import ai.privado.languageEngine.java.passes.module.{DependenciesCategoryPass, DependenciesNodePass}
 import ai.privado.languageEngine.java.semantic.Language._
 import ai.privado.metric.MetricHandler
-import ai.privado.model.Constants.{
-  cpgOutputFileName,
-  outputAuditFileName,
-  outputDirectoryName,
-  outputFileName,
-  outputIntermediateFileName,
-  outputUnresolvedFilename,
-  storages
-}
-import ai.privado.utility.{PropertyParserPass, UnresolvedReportUtility}
-import ai.privado.model.{CatLevelOne, ConfigAndRules, Constants}
+import ai.privado.model.Constants._
+import ai.privado.model.{CatLevelOne, Constants, Language}
+import ai.privado.passes.{HTMLParserPass, SQLParser}
 import ai.privado.semantic.Language._
-import ai.privado.model.Language
 import ai.privado.utility.Utilities.createCpgFolder
+import ai.privado.utility.{PropertyParserPass, UnresolvedReportUtility}
+import better.files.File
 import io.joern.dataflowengineoss.layers.dataflows.{OssDataFlow, OssDataFlowOptions}
 import io.joern.javasrc2cpg.{Config, JavaSrc2Cpg}
 import io.joern.x2cpg.X2Cpg.applyDefaultOverlays
+import io.joern.x2cpg.utils.ExternalCommand
 import io.shiftleft.codepropertygraph
 import io.shiftleft.codepropertygraph.generated.Languages
 import io.shiftleft.semanticcpg.language._
 import io.shiftleft.semanticcpg.layers.LayerCreatorContext
 import org.slf4j.LoggerFactory
-import ai.privado.languageEngine.java.passes.module.{DependenciesCategoryPass, DependenciesNodePass}
-import ai.privado.passes.{HTMLParserPass, SQLParser}
 
 import java.util.Calendar
-import scala.util.{Failure, Success, Try}
-import io.joern.x2cpg.utils.ExternalCommand
-import better.files.File
-
 import scala.collection.mutable.ListBuffer
+import scala.util.{Failure, Success, Try}
 
 object JavaProcessor {
 
-  private val logger    = LoggerFactory.getLogger(getClass)
+  private val logger = LoggerFactory.getLogger(getClass)
   private var cpgconfig = Config()
+
   private def processCPG(
-    xtocpg: Try[codepropertygraph.Cpg],
-    ruleCache: RuleCache,
-    sourceRepoLocation: String
-  ): Either[String, Unit] = {
+                          xtocpg: Try[codepropertygraph.Cpg],
+                          ruleCache: RuleCache,
+                          sourceRepoLocation: String
+                        ): Either[String, Unit] = {
     xtocpg match {
       case Success(cpg) => {
         try {
@@ -111,8 +101,10 @@ object JavaProcessor {
           )
           println(s"${Calendar.getInstance().getTime} - Finding source to sink flow of data...")
           val dataflowMap = cpg.dataflow(ScanProcessor.config, ruleCache)
-          println(s"${TimeMetric.getNewTime()} - Finding source to sink flow is done in \t\t- ${TimeMetric
-              .setNewTimeToLastAndGetTimeDiff()} - Processed final flows - ${DataFlowCache.finalDataflow.size}")
+          println(s"${TimeMetric.getNewTime()} - Finding source to sink flow is done in \t\t- ${
+            TimeMetric
+              .setNewTimeToLastAndGetTimeDiff()
+          } - Processed final flows - ${DataFlowCache.finalDataflow.size}")
           println(
             s"\n\n${TimeMetric.getNewTime()} - Code scanning is done in \t\t\t- ${TimeMetric.getTheTotalTime()}\n\n"
           )
@@ -212,11 +204,11 @@ object JavaProcessor {
   }
 
   /** Create cpg using Java Language
-    *
-    * @param sourceRepoLocation
-    * @param lang
-    * @return
-    */
+   *
+   * @param sourceRepoLocation
+   * @param lang
+   * @return
+   */
   def createJavaCpg(ruleCache: RuleCache, sourceRepoLocation: String, lang: String): Either[String, Unit] = {
     println(s"${Calendar.getInstance().getTime} - Processing source code using ${Languages.JAVASRC} engine")
     if (!config.skipDownloadDependencies)
@@ -229,13 +221,11 @@ object JavaProcessor {
 
     val cpgOutputPath = s"$sourceRepoLocation/$outputDirectoryName/$cpgOutputFileName"
     cpgconfig = Config(
-      inputPath = sourceRepoLocation,
-      outputPath = cpgOutputPath,
       fetchDependencies = !config.skipDownloadDependencies
-    )
+    ).withInputPath(sourceRepoLocation).withOutputPath(cpgOutputPath)
 
     // Create delomboked directory if source code uses lombok
-    val dependencies        = JavaSrc2Cpg.getDependencyList(cpgconfig)
+    val dependencies = JavaSrc2Cpg.getDependencyList(cpgconfig)
     val hasLombokDependency = dependencies.exists(_.contains("lombok"))
     if (hasLombokDependency) {
       val delombokPath = Delombok.run(AppCache.scanPath)
@@ -243,11 +233,9 @@ object JavaProcessor {
 
       // Creating a new CpgConfig which uses the delombokPath
       cpgconfig = Config(
-        inputPath = delombokPath,
         fetchDependencies = !config.skipDownloadDependencies,
         delombokMode = Some("no-delombok"),
-        outputPath = cpgOutputPath
-      )
+      ).withInputPath(delombokPath).withOutputPath(cpgOutputPath)
     }
 
     val javasrc = JavaSrc2Cpg()
@@ -268,7 +256,7 @@ object JavaProcessor {
     if (AppCache.isLombokPresent) {
       val dirName = AppCache.scanPath + "/" + Constants.delombok
       Try(File(dirName).delete()) match {
-        case Success(_)         => logger.debug("Succesfully deleted delomboked code")
+        case Success(_) => logger.debug("Succesfully deleted delomboked code")
         case Failure(exception) => logger.debug(s"Exception :", exception)
       }
     }

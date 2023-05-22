@@ -24,26 +24,26 @@
 package ai.privado.languageEngine.javascript.processor
 
 import ai.privado.audit.AuditReportEntryPoint
-import ai.privado.cache.{AppCache, AuditCache, DataFlowCache, RuleCache, TaggerCache}
+import ai.privado.cache._
 import ai.privado.entrypoint.ScanProcessor.config
 import ai.privado.entrypoint.{ScanProcessor, TimeMetric}
 import ai.privado.exporter.{ExcelExporter, JSONExporter}
 import ai.privado.languageEngine.javascript.passes.config.JSPropertyLinkerPass
-import io.joern.pysrc2cpg.PythonNaiveCallLinker
 import ai.privado.languageEngine.javascript.semantic.Language._
 import ai.privado.metric.MetricHandler
 import ai.privado.model.Constants._
 import ai.privado.model.{CatLevelOne, Constants, Language}
 import ai.privado.passes.{HTMLParserPass, SQLParser}
 import ai.privado.semantic.Language._
-import ai.privado.utility.{PropertyParserPass, UnresolvedReportUtility}
 import ai.privado.utility.Utilities.createCpgFolder
-import io.joern.jssrc2cpg.{Config, JsSrc2Cpg}
-import io.shiftleft.codepropertygraph
-import org.slf4j.LoggerFactory
-import io.shiftleft.semanticcpg.language._
+import ai.privado.utility.{PropertyParserPass, UnresolvedReportUtility}
 import better.files.File
+import io.joern.jssrc2cpg.{Config, JsSrc2Cpg}
+import io.joern.pysrc2cpg.PythonNaiveCallLinker
+import io.shiftleft.codepropertygraph
 import io.shiftleft.codepropertygraph.generated.Operators
+import io.shiftleft.semanticcpg.language._
+import org.slf4j.LoggerFactory
 
 import java.util.Calendar
 import scala.collection.mutable.ListBuffer
@@ -55,10 +55,10 @@ object JavascriptProcessor {
   private val logger = LoggerFactory.getLogger(getClass)
 
   private def processCPG(
-    xtocpg: Try[codepropertygraph.Cpg],
-    ruleCache: RuleCache,
-    sourceRepoLocation: String
-  ): Either[String, Unit] = {
+                          xtocpg: Try[codepropertygraph.Cpg],
+                          ruleCache: RuleCache,
+                          sourceRepoLocation: String
+                        ): Either[String, Unit] = {
     xtocpg match {
       case Success(cpg) =>
         // Apply default overlays
@@ -82,8 +82,10 @@ object JavascriptProcessor {
         cpg.runTagger(ruleCache, taggerCache)
         println(s"${Calendar.getInstance().getTime} - Finding source to sink flow of data...")
         val dataflowMap = cpg.dataflow(ScanProcessor.config, ruleCache)
-        println(s"\n${TimeMetric.getNewTime()} - Finding source to sink flow is done in \t\t- ${TimeMetric
-            .setNewTimeToLastAndGetTimeDiff()} - Processed final flows - ${DataFlowCache.finalDataflow.size}")
+        println(s"\n${TimeMetric.getNewTime()} - Finding source to sink flow is done in \t\t- ${
+          TimeMetric
+            .setNewTimeToLastAndGetTimeDiff()
+        } - Processed final flows - ${DataFlowCache.finalDataflow.size}")
         println(s"\n${TimeMetric.getNewTime()} - Code scanning is done in \t\t\t- ${TimeMetric.getTheTotalTime()}\n")
         println(s"${Calendar.getInstance().getTime} - Brewing result...")
         MetricHandler.setScanStatus(true)
@@ -174,11 +176,11 @@ object JavascriptProcessor {
   }
 
   /** Create cpg using Javascript Language
-    *
-    * @param sourceRepoLocation
-    * @param lang
-    * @return
-    */
+   *
+   * @param sourceRepoLocation
+   * @param lang
+   * @return
+   */
   def createJavaScriptCpg(ruleCache: RuleCache, sourceRepoLocation: String, lang: String): Either[String, Unit] = {
 
     println(s"${Calendar.getInstance().getTime} - Processing source code using $lang engine")
@@ -191,7 +193,7 @@ object JavascriptProcessor {
     // Need to convert path to absolute path as javaScriptCpg need abolute path of repo
     val absoluteSourceLocation = File(sourceRepoLocation).path.toAbsolutePath.normalize().toString
     val cpgconfig =
-      Config(inputPath = absoluteSourceLocation, outputPath = cpgOutputPath)
+      Config().withInputPath(absoluteSourceLocation).withOutputPath(cpgOutputPath)
     val xtocpg = new JsSrc2Cpg().createCpgWithAllOverlays(cpgconfig)
     processCPG(xtocpg, ruleCache, sourceRepoLocation)
   }

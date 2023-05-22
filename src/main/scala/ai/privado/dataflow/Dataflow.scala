@@ -78,7 +78,7 @@ class Dataflow(cpg: Cpg) {
           sinks.reachableByFlows(sources).l
         else {
           val firstLevelSources =
-            sources.or(
+            sources.iterator.or(
               _.tag.nameExact(Constants.catLevelOne).valueExact(CatLevelOne.SOURCES.name),
               _.tag.nameExact(InternalTag.OBJECT_OF_SENSITIVE_CLASS_BY_MEMBER_NAME.toString)
             )
@@ -190,7 +190,7 @@ object Dataflow {
     sinks.reachableByFlows(sources).l
   }
 
-  def getSources(cpg: Cpg): List[AstNode] = {
+  def getSources(cpg: Cpg): Iterable[AstNode] = {
     def filterSources(traversal: Traversal[AstNode]) = {
       traversal.tag
         .nameExact(Constants.catLevelOne)
@@ -206,7 +206,7 @@ object Dataflow {
       .l ++ cpg.argument.isFieldIdentifier.where(filterSources).l ++ cpg.member.where(filterSources).l
   }
 
-  def getSinks(cpg: Cpg): List[CfgNode] = {
+  def getSinks(cpg: Cpg): Iterable[CfgNode] = {
     cpg.call.where(_.tag.nameExact(Constants.catLevelOne).valueExact(CatLevelOne.SINKS.name)).l
   }
 
@@ -225,7 +225,7 @@ object Dataflow {
           .headOption
           .getOrElse("")
       } else {
-        sourceId = Traversal(path.elements.head).isIdentifier.typeFullName.headOption.getOrElse("")
+        sourceId = path.elements.head.iterator.isIdentifier.typeFullName.headOption.getOrElse("")
       }
       var sinkId = path.elements.last.tag.nameExact(Constants.id).value.headOption.getOrElse("")
       // fetch call node methodeFullName if tag not present

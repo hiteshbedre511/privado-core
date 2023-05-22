@@ -49,11 +49,11 @@ class DatabaseReadPass(cpg: Cpg, ruleCache: RuleCache, taggerCache: TaggerCache)
           val tableName = queryModel.table.name
           val columns   = queryModel.column.map(_.name)
           val sensitiveMemberRuleIds = sensitiveClasses.find(s => s.matches(s"(?i).*${tableName}")) match {
-            case Some(value) => sensitiveClassesWithMatchedRules(value).keys.l
+            case Some(value) => sensitiveClassesWithMatchedRules(value).keys
             case None        => List.empty
           }
 
-          if (columns.length == 1 && columns(0) == "*") {
+          if (columns.length == 1 && columns.head == "*") {
             if (sensitiveMemberRuleIds.nonEmpty)
               sensitiveMemberRuleIds.foreach(ruleId => addTagsToNode(ruleId, node, builder))
             else {
@@ -72,7 +72,6 @@ class DatabaseReadPass(cpg: Cpg, ruleCache: RuleCache, taggerCache: TaggerCache)
                   .getSources(cpg)
                   .filterNot(_.isMember)
                   .map(_.asInstanceOf[CfgNode])
-                  .l
               implicit val engineContext: EngineContext =
                 EngineContext(config = EngineConfig(4))
               val readFlow = dataElementSinks.reachableByFlows(node).l

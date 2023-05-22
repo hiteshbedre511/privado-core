@@ -105,6 +105,7 @@ class IdentifierTagger(cpg: Cpg, ruleCache: RuleCache, taggerCache: TaggerCache)
           val impactedObjects =
             cpg.identifier.where(_.typeFullName(typeDeclVal)).l ::: cpg.parameter.where(_.typeFullName(typeDeclVal)).l
           impactedObjects
+            .iterator
             .whereNot(_.code("this"))
             .foreach(impactedObject => {
               if (impactedObject.tag.nameExact(Constants.id).l.isEmpty) {

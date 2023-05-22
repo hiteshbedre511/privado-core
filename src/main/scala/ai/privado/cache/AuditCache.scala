@@ -67,10 +67,10 @@ object AuditCache {
       semantics = JavaSemanticGenerator.getSemantics(cpg, newPrivadoScanConfig, ruleCache),
       config = EngineConfig(4)
     )
-    val sources = Dataflow.getSources(cpg)
-    val sinks   = Dataflow.getSinks(cpg)
+    val sources = Dataflow.getSources(cpg).iterator
+    val sinks   = Dataflow.getSinks(cpg).iterator
 
-    val unfilteredPostSemanticsFlow = sinks.reachableByFlows(sources)(engineContext).l
+    val unfilteredPostSemanticsFlow = sinks.reachableByFlows(sources)(engineContext).toList
 
     dataflowMapByPathId = getDataflowPathAndIdMap(unfilteredPostSemanticsFlow)
 

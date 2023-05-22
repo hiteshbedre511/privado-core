@@ -61,10 +61,10 @@ class MethodFullNameFromIdentifier(cpg: Cpg) extends ForkJoinParallelCpgPass[(Ex
       .flatMap(assignmentCall => {
         val argument2 = assignmentCall.argument(2)
         // handles const webClient = WebClient();
-        if (argument2.isCall && Traversal(argument2).isCall.methodFullNameNot(ANY_VALUE).nonEmpty)
+        if (argument2.isCall && argument2.iterator.isCall.methodFullNameNot(ANY_VALUE).nonEmpty)
           Some((assignmentCall.argument(1), assignmentCall.argument(2)))
         // handles const webClient = new WebClient();
-        else if (argument2.isBlock && Traversal(argument2).isBlock.astChildren.isCall.name("<operator>.new").nonEmpty)
+        else if (argument2.isBlock && argument2.iterator.isBlock.astChildren.isCall.name("<operator>.new").nonEmpty)
           Some(
             (
               assignmentCall.argument(1),
@@ -80,9 +80,9 @@ class MethodFullNameFromIdentifier(cpg: Cpg) extends ForkJoinParallelCpgPass[(Ex
   override def runOnPart(builder: DiffGraphBuilder, argumentNodes: (Expression, Expression)): Unit = {
 
     // Identifier node from generateParts
-    val identifierNode = Traversal(argumentNodes._1).isIdentifier.l
+    val identifierNode = argumentNodes._1.iterator.isIdentifier.l
     // CallNodeMethodFullName of call node from generateParts
-    val callNodeMethodFullName = Traversal(argumentNodes._2).isCall.headOption match {
+    val callNodeMethodFullName = argumentNodes._2.iterator.isCall.headOption match {
       case Some(callNode) if callNode.methodFullName != ANY_VALUE || callNode.methodFullName.nonEmpty =>
         callNode.methodFullName
       case _ => ANY_VALUE

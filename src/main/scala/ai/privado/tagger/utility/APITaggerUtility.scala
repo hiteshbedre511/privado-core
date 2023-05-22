@@ -54,10 +54,10 @@ object APITaggerUtility {
     showAPI: Boolean = true
   ): Unit = {
     val filteredSourceNode =
-      apiInternalSinkPattern.filter(node => isFileProcessable(getFileNameForNode(node), ruleCache))
+      apiInternalSinkPattern.filter(node => isFileProcessable(getFileNameForNode(node), ruleCache)).iterator
     if (apis.nonEmpty && filteredSourceNode.nonEmpty) {
       val apiFlows = {
-        val flows = apis.reachableByFlows(filteredSourceNode).l
+        val flows = apis.reachableByFlows(filteredSourceNode).toList
         if (ScanProcessor.config.disableDeDuplication)
           flows
         else

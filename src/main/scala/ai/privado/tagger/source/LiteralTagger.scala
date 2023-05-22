@@ -47,7 +47,7 @@ class LiteralTagger(cpg: Cpg, ruleCache: RuleCache) extends PrivadoParallelCpgPa
     .l
 
   private lazy val impactedLiteralCached =
-    (generalLiteralCached ::: sqlQueryLiteralCached).dedup.l
+    (generalLiteralCached ::: sqlQueryLiteralCached).iterator.dedup.l
   override def generateParts(): Array[RuleInfo] = ruleCache.getRule.sources.toArray
   override def runOnPart(builder: DiffGraphBuilder, ruleInfo: RuleInfo): Unit = {
     // Step 1.2

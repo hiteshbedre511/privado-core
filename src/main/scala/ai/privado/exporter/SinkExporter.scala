@@ -82,13 +82,11 @@ class SinkExporter(cpg: Cpg, ruleCache: RuleCache) {
                 entrySet._2.toList
                   .distinctBy(_.code)
                   .distinctBy(_.lineNumber)
-                  .distinctBy(node => {
-                    Traversal(node).head match {
-                      case a @ (_: Identifier | _: Literal | _: MethodParameterIn | _: Call | _: FieldIdentifier) =>
-                        a.file.name.head
-                      case a => a.location.filename
-                    }
-                  })
+                  .distinctBy {
+                    case a@(_: Identifier | _: Literal | _: MethodParameterIn | _: Call | _: FieldIdentifier) =>
+                      a.file.name.head
+                    case a => a.location.filename
+                  }
             })
         )
       )

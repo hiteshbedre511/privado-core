@@ -1,13 +1,14 @@
-import sbt.{Credentials}
+import sbt.Credentials
 name                     := "privado-core"
 ThisBuild / organization := "ai.privado"
-ThisBuild / scalaVersion := "2.13.7"
+ThisBuild / scalaVersion := "2.13.8"
+ThisBuild / crossScalaVersions := Seq("2.13.8", "3.2.2")
 ThisBuild / version      := sys.env.getOrElse("BUILD_VERSION", "dev-SNAPSHOT")
 // parsed by project/Versions.scala, updated by updateDependencies.sh
 
-val cpgVersion        = "1.3.600"
-val joernVersion      = "1.1.1699"
-val overflowdbVersion = "1.172"
+val cpgVersion        = "1.3.601"
+val joernVersion      = "1.1.1725"
+val overflowdbVersion = "1.174"
 
 //External dependency versions
 val circeVersion   = "0.14.1"

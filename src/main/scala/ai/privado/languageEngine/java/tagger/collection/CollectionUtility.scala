@@ -26,7 +26,7 @@ object CollectionUtility {
     methodUrlMap: mutable.HashMap[Long, String] = mutable.HashMap[Long, String](),
     classUrlMap: mutable.HashMap[Long, String] = mutable.HashMap[Long, String]()
   ) = {
-    val collectionPoints = Traversal(collectionMethods).flatMap(collectionMethod => {
+    val collectionPoints = collectionMethods.iterator.flatMap(collectionMethod => {
       sourceRuleInfos.flatMap(sourceRule => {
         val parameters =
           collectionMethod.parameter.where(_.name(sourceRule.combinedRulePattern)).whereNot(_.code("this")).l
@@ -84,7 +84,7 @@ object CollectionUtility {
 
     tagMethodEndpoints(
       builder,
-      collectionPointsFromDerivedTypeDecl.l,
+      collectionPointsFromDerivedTypeDecl,
       collectionRuleInfo,
       ruleCache,
       returnByName,
@@ -150,7 +150,7 @@ object CollectionUtility {
             annotation.typeDecl.headOption match {
               case Some(typeDeclNode) => typeDeclNode.name
               case None =>
-                annotation.method.headOption match {
+                annotation.method.iterator.headOption match {
                   case Some(methodNode) => methodNode.name
                   case None             => ""
                 }

@@ -49,6 +49,7 @@ class CollectionTagger(cpg: Cpg, ruleCache: RuleCache) extends PrivadoParallelCp
           cpg.method.fullNameExact(m.methodFullName).l.head.id() ->
             getRoute(
               m.astParent.astParent
+                .iterator
                 .where(_.isCall)
                 .head
                 .asInstanceOf[Call]
@@ -79,8 +80,8 @@ class CollectionTagger(cpg: Cpg, ruleCache: RuleCache) extends PrivadoParallelCp
 
     collectionMethodsCache = collectionMethodsCache ::: djangoCollectionMethods.toList
 
-    tagDirectSources(cpg, builder, collectionMethodsCache.l, collectionRuleInfo)
-    tagDerivedSources(cpg, builder, collectionMethodsCache.l, collectionRuleInfo)
+    tagDirectSources(cpg, builder, collectionMethodsCache, collectionRuleInfo)
+    tagDerivedSources(cpg, builder, collectionMethodsCache, collectionRuleInfo)
   }
 
   def tagDirectSources(
@@ -117,7 +118,7 @@ class CollectionTagger(cpg: Cpg, ruleCache: RuleCache) extends PrivadoParallelCp
       })
     })
 
-    tagMethodEndpoints(builder, collectionPoints.l, collectionRuleInfo)
+    tagMethodEndpoints(builder, collectionPoints, collectionRuleInfo)
   }
 
   def tagDerivedSources(
@@ -142,6 +143,7 @@ class CollectionTagger(cpg: Cpg, ruleCache: RuleCache) extends PrivadoParallelCp
       } else {
         // Have removed the earlier code, where we were fetching all the referencing identifiers of parameter and then tagging, because we were missing on cases where the parameter is not used in the code
         parameters
+          .iterator
           .whereNot(_.code("this"))
           .foreach(parameter => {
             parameter.tag
@@ -152,7 +154,7 @@ class CollectionTagger(cpg: Cpg, ruleCache: RuleCache) extends PrivadoParallelCp
       }
     })
 
-    tagMethodEndpoints(builder, collectionPointsFromDerivedTypeDecl.l, collectionRuleInfo)
+    tagMethodEndpoints(builder, collectionPointsFromDerivedTypeDecl, collectionRuleInfo)
   }
 
   private def tagMethodEndpoints(

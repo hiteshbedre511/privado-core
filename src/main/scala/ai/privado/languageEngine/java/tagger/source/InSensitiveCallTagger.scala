@@ -42,14 +42,14 @@ class InSensitiveCallTagger(cpg: Cpg, ruleCache: RuleCache, taggerCache: TaggerC
     val nonPersonalMembersRegexString         = nonPersonalMembers.mkString("(", "|", ")")
     val personalMembersRegexString            = s".*${personalMembers.mkString("(", "|", ")")}.*"
     if (nonPersonalMembers.nonEmpty) {
-      getCallsMatchingReturnRegex(cpg, typeDeclFullName, nonPersonalMembersRegexString).dedup.foreach(
+      getCallsMatchingReturnRegex(cpg, typeDeclFullName, nonPersonalMembersRegexString).iterator.dedup.foreach(
         storeForTag(builder, _, ruleCache)(
           InternalTag.INSENSITIVE_METHOD_RETURN.toString,
           "Data.Sensitive.NonPersonal.Method"
         )
       )
 
-      getCallsMatchingNameRegex(cpg, typeDeclFullName, nonPersonalMembersRegexString).dedup.foreach(
+      getCallsMatchingNameRegex(cpg, typeDeclFullName, nonPersonalMembersRegexString).iterator.dedup.foreach(
         storeForTag(builder, _, ruleCache)(InternalTag.INSENSITIVE_SETTER.toString)
       )
 
@@ -64,7 +64,7 @@ class InSensitiveCallTagger(cpg: Cpg, ruleCache: RuleCache, taggerCache: TaggerC
     }
 
     if (personalMembers.nonEmpty)
-      getCallsMatchingNameRegex(cpg, typeDeclFullName, personalMembersRegexString).dedup.foreach(
+      getCallsMatchingNameRegex(cpg, typeDeclFullName, personalMembersRegexString).iterator.dedup.foreach(
         storeForTag(builder, _, ruleCache)(InternalTag.SENSITIVE_SETTER.toString)
       )
   }

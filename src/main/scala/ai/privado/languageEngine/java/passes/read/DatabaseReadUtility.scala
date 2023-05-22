@@ -82,7 +82,7 @@ object DatabaseReadUtility {
     }
 
     val sensitiveClassesWithMatchedRules = taggerCache.typeDeclMemberCache
-    val sensitiveClasses                 = taggerCache.typeDeclMemberCache.keys.l
+    val sensitiveClasses                 = taggerCache.typeDeclMemberCache.keys
     val query                            = extractSQLForConcatenatedString(queryCode)
     val result                           = SQLParser.parseSqlQuery(query)
 
@@ -97,10 +97,10 @@ object DatabaseReadUtility {
             if (
               classTableMapping.contains(tableName) && sensitiveClasses.contains(classTableMapping(tableName).fullName)
             )
-              sensitiveClassesWithMatchedRules(classTableMapping(tableName).fullName).keys.l
+              sensitiveClassesWithMatchedRules(classTableMapping(tableName).fullName).keys
             else
               sensitiveClasses.find(s => s.matches(s"(?i).*${tableName}")) match {
-                case Some(value) => sensitiveClassesWithMatchedRules(value).keys.l
+                case Some(value) => sensitiveClassesWithMatchedRules(value).keys
                 case None        => List.empty
               }
           }
@@ -124,6 +124,7 @@ object DatabaseReadUtility {
                   .getSources(cpg)
                   .filter(_.isInstanceOf[CfgNode])
                   .map(_.asInstanceOf[CfgNode])
+                  .iterator
                   .l
 
               val readFlow = Dataflow.dataflowForSourceSinkPair(referencingQueryNodes, dataElementSinks)

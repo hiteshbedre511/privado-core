@@ -55,7 +55,7 @@ object UnresolvedReportUtility {
 
     xtocpg match {
       case Success(cpg) => {
-        val importCount = cpg.call.l.filter((i) => i.name == "import").l.length
+        val importCount = cpg.call.l.count((i) => i.name == "import")
         total = cpg.call.methodFullName.l.length - importCount
         unresolvedSignatures = cpg.call.methodFullName(unresolved_sig_pattern).l.length - importCount
 

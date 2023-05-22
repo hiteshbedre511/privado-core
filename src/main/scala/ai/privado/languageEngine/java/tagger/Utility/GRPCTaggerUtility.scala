@@ -89,11 +89,11 @@ object GRPCTaggerUtility {
         .l
     grpcSinkCalls = grpcSinkCalls ++ independentSinkCalls
 
-    return grpcSinkCalls.dedup.l
+    grpcSinkCalls.iterator.dedup.l
   }
 
   def getGrpcSinks(cpg: Cpg): List[Call] = {
     val endpoints = getGrpcEndpoints(cpg)
-    return getGrpcSinkCalls(cpg, endpoints)
+    getGrpcSinkCalls(cpg, endpoints)
   }
 }
